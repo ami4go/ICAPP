@@ -16,13 +16,80 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
 # Simple in-memory session storage for demo (Move to Redis for production)
 sessions = {}
 
+# Doctor accounts storage: {username: {name, password, history: []}}
+doctors = {}
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok", "message": "Backend is running"})
 
+@app.route('/api/signup', methods=['POST'])
+def signup():
+    """Register a new doctor account."""
+    data = request.json
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '')
+    name = data.get('name', '').strip()
+    
+    if not username or not password or not name:
+        return jsonify({"error": "Name, username, and password are required"}), 400
+    
+    if len(username) < 3:
+        return jsonify({"error": "Username must be at least 3 characters"}), 400
+    
+    if len(password) < 4:
+        return jsonify({"error": "Password must be at least 4 characters"}), 400
+    
+    if username in doctors:
+        return jsonify({"error": "Username already exists"}), 409
+    
+    # Create doctor account
+    doctors[username] = {
+        "name": name,
+        "password": password,  # In production, hash this!
+        "history": []
+    }
+    
+    return jsonify({"message": "Account created successfully", "username": username, "name": name})
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    """Authenticate doctor login."""
+    data = request.json
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '')
+    
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+    
+    if username not in doctors:
+        return jsonify({"error": "Username not found"}), 404
+    
+    if doctors[username]["password"] != password:
+        return jsonify({"error": "Incorrect password"}), 401
+    
+    return jsonify({
+        "message": "Login successful",
+        "username": username,
+        "name": doctors[username]["name"]
+    })
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    """Get session history for a doctor."""
+    username = request.args.get('username', '').strip().lower()
+    
+    if not username or username not in doctors:
+        return jsonify({"error": "Doctor not found"}), 404
+    
+    return jsonify({"history": doctors[username]["history"]})
+
 @app.route('/api/start', methods=['POST'])
 def start_session():
     try:
+        data = request.json or {}
+        doctor_username = data.get('doctor_username', '').strip().lower()
+        
         # Generate a new patient case (uses 8b instant for speed + fallback safety)
         patient_case = generate_patient_case()
         
@@ -31,12 +98,14 @@ def start_session():
         # Initialize session state
         sessions[session_id] = {
             "session_id": session_id,
+            "doctor_username": doctor_username,  # Link to doctor
             "patient_case": patient_case,
             "revealed_symptoms": [],
             "asked_questions": [],
             "treatment_given": [],
             "status": "active",
-            "messages": []
+            "messages": [],
+            "chat_history": []  # Store readable chat for history
         }
         
         return jsonify({
@@ -84,6 +153,10 @@ def message():
                         state["revealed_symptoms"].append(sym)
             if "status" in meta:
                 state["status"] = meta["status"]
+        
+        # Store readable chat for history replay
+        state["chat_history"].append({"role": "doctor", "text": user_message})
+        state["chat_history"].append({"role": "patient", "text": result["reply"]})
                 
         # Persist (in-memory)
         sessions[session_id] = state
@@ -120,10 +193,30 @@ def get_state():
 def end_session():
     data = request.json
     session_id = data.get('session_id')
-    if session_id in sessions:
-        del sessions[session_id]
-        return jsonify({"message": "Session ended"})
-    return jsonify({"message": "Session not found"}), 404
+    
+    if session_id not in sessions:
+        return jsonify({"message": "Session not found"}), 404
+    
+    session = sessions[session_id]
+    doctor_username = session.get("doctor_username", "")
+    
+    # Save to doctor's history if logged in
+    if doctor_username and doctor_username in doctors:
+        from datetime import datetime
+        history_entry = {
+            "session_id": session_id,
+            "patient_name": session["patient_case"].get("name", "Unknown"),
+            "disease": session["patient_case"].get("disease", "Unknown"),
+            "revealed_symptoms": session["revealed_symptoms"],
+            "status": session["status"],
+            "chat_history": session.get("chat_history", []),
+            "timestamp": datetime.now().isoformat()
+        }
+        doctors[doctor_username]["history"].append(history_entry)
+        print(f"Session saved to {doctor_username}'s history")
+    
+    del sessions[session_id]
+    return jsonify({"message": "Session ended", "saved_to_history": bool(doctor_username)})
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_symptoms():

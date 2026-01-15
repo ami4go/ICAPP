@@ -2,16 +2,45 @@ const BASE = import.meta.env.VITE_API_URL || '';
 const API_BASE_URL = BASE ? `${BASE}/api` : '/api';
 
 export const api = {
-    startSession: async () => {
+    // Auth endpoints
+    signup: async (name, username, password) => {
+        const response = await fetch(`${API_BASE_URL}/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, username, password })
+        });
+        const data = await response.json();
+        if (!response.ok) throw data;
+        return data;
+    },
+
+    login: async (username, password) => {
+        const response = await fetch(`${API_BASE_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+        if (!response.ok) throw data;
+        return data;
+    },
+
+    getHistory: async (username) => {
+        const response = await fetch(`${API_BASE_URL}/history?username=${username}`);
+        const data = await response.json();
+        if (!response.ok) throw data;
+        return data;
+    },
+
+    // Session endpoints
+    startSession: async (doctorUsername = '') => {
         const response = await fetch(`${API_BASE_URL}/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
+            body: JSON.stringify({ doctor_username: doctorUsername })
         });
         const data = await response.json();
-        if (!response.ok) {
-            throw data;
-        }
+        if (!response.ok) throw data;
         return data;
     },
 
