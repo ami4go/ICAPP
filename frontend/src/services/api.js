@@ -69,11 +69,15 @@ export const api = {
         return response.json();
     },
 
-    endSession: async (sessionId) => {
+    endSession: async (sessionId, finalDiagnosis = '', prescriptions = '') => {
         const response = await fetch(`${API_BASE_URL}/end`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sessionId })
+            body: JSON.stringify({
+                session_id: sessionId,
+                final_diagnosis: finalDiagnosis,
+                prescriptions: prescriptions
+            })
         });
         return response.json();
     },

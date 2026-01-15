@@ -4,6 +4,7 @@ import PatientCard from './components/PatientCard';
 import ChatInterface from './components/ChatInterface';
 import AuthPage from './components/AuthPage';
 import HistoryPage from './components/HistoryPage';
+import EndSessionModal from './components/EndSessionModal';
 import './index.css';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
   });
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showEndModal, setShowEndModal] = useState(false);
 
   const handleAuthSuccess = (username, name) => {
     setDoctor({ username, name });
@@ -115,13 +117,18 @@ function App() {
     }
   };
 
-  const endSession = async () => {
+  const handleEndClick = () => {
+    setShowEndModal(true);
+  };
+
+  const endSession = async (finalDiagnosis = '', prescriptions = '') => {
     if (session) {
-      await api.endSession(session);
+      await api.endSession(session, finalDiagnosis, prescriptions);
       setSession(null);
       setPatient(null);
       setMessages([]);
       setState({ status: 'inactive', revealed_symptoms: [], needs_escalation: false });
+      setShowEndModal(false);
     }
   };
 
@@ -170,7 +177,7 @@ function App() {
               {loading ? 'Generating Case...' : 'Start New Session'}
             </button>
           ) : (
-            <button className="btn-danger" onClick={endSession}>
+            <button className="btn-danger" onClick={handleEndClick}>
               End Session
             </button>
           )}
@@ -202,6 +209,14 @@ function App() {
           />
         </section>
       </main>
+
+      {/* End Session Modal */}
+      {showEndModal && (
+        <EndSessionModal
+          onConfirm={(diagnosis, prescrips) => endSession(diagnosis, prescrips)}
+          onCancel={() => setShowEndModal(false)}
+        />
+      )}
     </div>
   );
 }

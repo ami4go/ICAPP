@@ -214,6 +214,8 @@ def get_state():
 def end_session():
     data = request.json
     session_id = data.get('session_id')
+    final_diagnosis = data.get('final_diagnosis', '').strip()
+    prescriptions = data.get('prescriptions', '').strip()
     
     if session_id not in sessions:
         return jsonify({"message": "Session not found"}), 404
@@ -224,13 +226,18 @@ def end_session():
     # Save to doctor's history if logged in
     if doctor_username and doctor_username in doctors:
         from datetime import datetime
+        patient_case = session["patient_case"]
+        revealed = session["revealed_symptoms"]
+        
         history_entry = {
             "session_id": session_id,
-            "patient_name": session["patient_case"].get("name", "Unknown"),
-            "disease": session["patient_case"].get("disease", "Unknown"),
-            "revealed_symptoms": session["revealed_symptoms"],
+            "patient_name": patient_case.get("name", "Unknown"),
+            "patient_sex": patient_case.get("sex", "Unknown"),
+            "patient_age": patient_case.get("age_range", "Unknown"),
+            "revealed_symptoms": revealed if revealed else [],
+            "final_diagnosis": final_diagnosis if final_diagnosis else "Not provided",
+            "prescriptions": prescriptions if prescriptions else "Not provided",
             "status": session["status"],
-            "chat_history": session.get("chat_history", []),
             "timestamp": datetime.now().isoformat()
         }
         doctors[doctor_username]["history"].append(history_entry)

@@ -44,14 +44,17 @@ const HistoryPage = ({ doctorUsername, doctorName, onBack }) => {
         }
     };
 
+    // Session Detail View
     if (selectedSession) {
+        const symptoms = selectedSession.revealed_symptoms || [];
+
         return (
             <div style={{
                 minHeight: '100vh',
                 background: 'radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%)',
                 padding: '2rem'
             }}>
-                <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                <div style={{ maxWidth: '700px', margin: '0 auto' }}>
                     <button
                         onClick={() => setSelectedSession(null)}
                         style={{
@@ -67,55 +70,98 @@ const HistoryPage = ({ doctorUsername, doctorName, onBack }) => {
                         ← Back to History
                     </button>
 
-                    <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                        <h2 style={{ color: '#0ea5a4', margin: '0 0 0.5rem 0' }}>
-                            Session with {selectedSession.patient_name}
+                    <div className="glass-panel" style={{ padding: '2rem' }}>
+                        <h2 style={{ color: '#0ea5a4', margin: '0 0 1.5rem 0', textAlign: 'center' }}>
+                            Patient Case Summary
                         </h2>
-                        <p style={{ color: '#94a3b8', margin: '0 0 1.5rem 0' }}>
-                            {new Date(selectedSession.timestamp).toLocaleString()} •
-                            Disease: <span style={{ color: '#a78bfa' }}>{selectedSession.disease}</span>
-                        </p>
 
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <h4 style={{ color: '#94a3b8', margin: '0 0 0.5rem 0' }}>Revealed Symptoms:</h4>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                {selectedSession.revealed_symptoms.map((s, i) => (
-                                    <span key={i} style={{
-                                        background: 'rgba(14, 165, 233, 0.15)',
-                                        color: '#38bdf8',
-                                        padding: '4px 10px',
-                                        borderRadius: '20px',
-                                        fontSize: '0.85rem'
-                                    }}>{s}</span>
-                                ))}
+                        {/* Patient Info */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(3, 1fr)',
+                            gap: '1rem',
+                            marginBottom: '1.5rem',
+                            textAlign: 'center'
+                        }}>
+                            <div>
+                                <span style={{ color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase' }}>Name</span>
+                                <p style={{ margin: '0.25rem 0 0 0', fontWeight: '600' }}>{selectedSession.patient_name}</p>
+                            </div>
+                            <div>
+                                <span style={{ color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase' }}>Sex</span>
+                                <p style={{ margin: '0.25rem 0 0 0', fontWeight: '600' }}>{selectedSession.patient_sex || 'Unknown'}</p>
+                            </div>
+                            <div>
+                                <span style={{ color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase' }}>Age</span>
+                                <p style={{ margin: '0.25rem 0 0 0', fontWeight: '600' }}>{selectedSession.patient_age || 'Unknown'}</p>
                             </div>
                         </div>
 
-                        <h4 style={{ color: '#94a3b8', margin: '0 0 1rem 0' }}>Chat Transcript:</h4>
-                        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                            {selectedSession.chat_history && selectedSession.chat_history.map((msg, i) => (
-                                <div key={i} style={{
-                                    marginBottom: '1rem',
-                                    padding: '0.75rem 1rem',
-                                    borderRadius: '12px',
-                                    background: msg.role === 'doctor' ? 'rgba(14, 165, 164, 0.2)' : 'rgba(51, 65, 85, 0.5)',
-                                    marginLeft: msg.role === 'doctor' ? 'auto' : 0,
-                                    marginRight: msg.role === 'doctor' ? 0 : 'auto',
-                                    maxWidth: '80%'
-                                }}>
-                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
-                                        {msg.role === 'doctor' ? 'You' : 'Patient'}
-                                    </span>
-                                    <p style={{ margin: '0.25rem 0 0 0' }}>{msg.text}</p>
+                        <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '1.5rem 0' }} />
+
+                        {/* Symptoms */}
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <h4 style={{ color: '#94a3b8', margin: '0 0 0.75rem 0', fontSize: '0.9rem', textTransform: 'uppercase' }}>
+                                Symptoms Revealed
+                            </h4>
+                            {symptoms.length > 0 ? (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {symptoms.map((s, i) => (
+                                        <span key={i} style={{
+                                            background: 'rgba(14, 165, 233, 0.15)',
+                                            color: '#38bdf8',
+                                            padding: '6px 12px',
+                                            borderRadius: '20px',
+                                            fontSize: '0.9rem'
+                                        }}>{s}</span>
+                                    ))}
                                 </div>
-                            ))}
+                            ) : (
+                                <p style={{ color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>No symptoms revealed</p>
+                            )}
                         </div>
+
+                        {/* Final Diagnosis */}
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <h4 style={{ color: '#94a3b8', margin: '0 0 0.75rem 0', fontSize: '0.9rem', textTransform: 'uppercase' }}>
+                                Final Diagnosis
+                            </h4>
+                            <p style={{
+                                margin: 0,
+                                fontSize: '1.1rem',
+                                fontWeight: '600',
+                                color: selectedSession.final_diagnosis === 'Not provided' ? '#94a3b8' : '#a78bfa'
+                            }}>
+                                {selectedSession.final_diagnosis || 'Not provided'}
+                            </p>
+                        </div>
+
+                        {/* Prescriptions */}
+                        <div>
+                            <h4 style={{ color: '#94a3b8', margin: '0 0 0.75rem 0', fontSize: '0.9rem', textTransform: 'uppercase' }}>
+                                Prescriptions / Recommendations
+                            </h4>
+                            <p style={{
+                                margin: 0,
+                                color: selectedSession.prescriptions === 'Not provided' ? '#94a3b8' : 'white',
+                                whiteSpace: 'pre-wrap'
+                            }}>
+                                {selectedSession.prescriptions || 'Not provided'}
+                            </p>
+                        </div>
+
+                        <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '1.5rem 0' }} />
+
+                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', textAlign: 'center', margin: 0 }}>
+                            Session Date: {new Date(selectedSession.timestamp).toLocaleString()}
+                        </p>
                     </div>
                 </div>
             </div>
         );
     }
 
+    // History List View  
     return (
         <div style={{
             minHeight: '100vh',
@@ -176,21 +222,17 @@ const HistoryPage = ({ doctorUsername, doctorName, onBack }) => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div>
                                         <h3 style={{ margin: '0 0 0.25rem 0' }}>{session.patient_name}</h3>
-                                        <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.9rem' }}>
-                                            {new Date(session.timestamp).toLocaleDateString()} •
-                                            {session.revealed_symptoms.length} symptoms revealed
+                                        <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.85rem' }}>
+                                            {session.patient_sex || 'Unknown'} • {session.patient_age || 'Unknown'} •
+                                            {(session.revealed_symptoms || []).length} symptoms
+                                        </p>
+                                        <p style={{ color: '#a78bfa', margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                                            Dx: {session.final_diagnosis || 'Not provided'}
                                         </p>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <span style={{
-                                            background: session.status === 'resolved' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)',
-                                            color: session.status === 'resolved' ? '#10b981' : '#eab308',
-                                            padding: '4px 10px',
-                                            borderRadius: '20px',
-                                            fontSize: '0.8rem',
-                                            fontWeight: '600'
-                                        }}>
-                                            {session.status}
+                                        <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                                            {new Date(session.timestamp).toLocaleDateString()}
                                         </span>
                                         <button
                                             onClick={(e) => handleDeleteSession(session.session_id, e)}
