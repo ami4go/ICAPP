@@ -138,6 +138,9 @@ def generate_patient_case() -> PatientCase:
     # Use 8b model for speed to avoid Vercel timeouts (10s limit)
     llm = get_groq_llm(temperature=0.9, model_name="llama-3.1-8b-instant")
     import random
+    import time
+    # Seed with current time to ensure true randomization on each call
+    random.seed(time.time() * 1000000)
     entropy = random.randint(0, 999999)
     # Pick a random domain to force the LLM out of its local minima
     domains = ["General Practice", "Urgent Care", "Internal Medicine", "Sports Medicine", "Cardiology", "Gastroenterology", "Dermatology", "Orthopedics"]
