@@ -106,11 +106,32 @@ Rules:
 
 # --- Logic ---
 
+# API Key Fallback System
+# Set GROQ_API_KEY and optionally GROQ_API_KEY_2 for redundancy
+API_KEYS = []
+for key_name in ["GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3"]:
+    key = os.getenv(key_name)
+    if key:
+        API_KEYS.append(key)
+
+current_key_index = 0
+
 def get_groq_llm(temperature=0.4, model_name="llama-3.3-70b-versatile"):
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise ValueError("GROQ_API_KEY not set")
+    global current_key_index
+    if not API_KEYS:
+        raise ValueError("No GROQ_API_KEY set. Please set at least GROQ_API_KEY in environment.")
+    
+    api_key = API_KEYS[current_key_index % len(API_KEYS)]
     return ChatGroq(temperature=temperature, model_name=model_name, groq_api_key=api_key)
+
+def rotate_api_key():
+    """Rotate to the next available API key after a rate limit error."""
+    global current_key_index
+    if len(API_KEYS) > 1:
+        current_key_index = (current_key_index + 1) % len(API_KEYS)
+        print(f"Rotated to API key index: {current_key_index}")
+        return True
+    return False
 
 def generate_patient_case() -> PatientCase:
     # High temperature for maximum variety
@@ -271,10 +292,37 @@ def process_turn(state: PatientState, user_input: str) -> Dict:
             "history_update": [HumanMessage(content=user_input), AIMessage(content=response.content)]
         }
     except Exception as e:
+        error_str = str(e).lower()
+        # Check for rate limit error (429)
+        if "rate limit" in error_str or "429" in error_str or "rate_limit_exceeded" in error_str:
+            print(f"Rate limit hit. Attempting to rotate API key...")
+            if rotate_api_key():
+                # Retry with new key
+                print("Retrying with new API key...")
+                try:
+                    llm = get_groq_llm(temperature=0.5, model_name="llama-3.3-70b-versatile")
+                    response = llm.invoke(messages)
+                    content = response.content.strip()
+                    if content.startswith("```json"): content = content[7:]
+                    if content.endswith("```"): content = content[:-3]
+                    content = content.strip()
+                    
+                    parsed = json.loads(content)
+                    reply_text = parsed.get("reply_text", "")
+                    metadata = parsed.get("metadata", {})
+                    
+                    return {
+                        "reply": reply_text,
+                        "metadata": metadata,
+                        "history_update": [HumanMessage(content=user_input), AIMessage(content=response.content)]
+                    }
+                except Exception as retry_error:
+                    print(f"Retry also failed: {retry_error}")
+        
         print(f"Agent Error: {e}")
         # Fallback to keep the app alive
         return {
-            "reply": "I'm not feeling well... (System Error: Invalid JSON)", 
+            "reply": "I'm not feeling well... (System Error: Rate limit or API issue)", 
             "metadata": {"status": "active", "revealed": [], "needs_escalation": False},
             "history_update": [HumanMessage(content=user_input), AIMessage(content=str(e))]
         }
