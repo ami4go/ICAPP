@@ -161,63 +161,78 @@ def generate_patient_case() -> PatientCase:
         HumanMessage(content=f"Generate a NEW unique patient case now. Variance Seed: {entropy}. Focus Domain: {selected_domain}. Sex: {forced_sex}. Name: {forced_name}. Ensure distinct age from previous. Prioritize COMMON everyday conditions (e.g., fractures, flu, wounds, migraines) over rare diseases.")
     ]
     
-    try:
-        # TIMEOUT PROTECTION: Vercel has a 10s limit.
-        # If generation fails for ANY reason (timeout, API error), return a fallback immediately.
-        response = llm.invoke(messages)
-        content = response.content.strip()
-        # Clean up if wrapped in backticks
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        return json.loads(content)
-    except Exception as e:
-        print(f"Generation failed (likely timeout): {e}")
-        # Fallback cases (Offline/Error mode)
-        fallbacks = [
-            {
-                "name": "Alex Smith",
-                "disease": "Common Cold",
-                "presenting_summary": "Runny nose and mild sore throat.",
-                "age_range": "18-24",
-                "sex": "male",
-                "onset_days": 2,
-                "severity": "mild",
-                "symptoms": ["runny nose", "sore throat", "sneezing", "mild fatigue"],
-                "red_flags": [],
-                "correct_treatments": ["Rest", "Hydration", "Paracetamol"],
-                "incorrect_treatments": ["Antibiotics"]
-            },
-            {
-                "name": "Maria Garcia",
-                "disease": "Tension Headache",
-                "presenting_summary": "Constant dull pain around my forehead for two days.",
-                "age_range": "35-44",
-                "sex": "female",
-                "onset_days": 2,
-                "severity": "moderate",
-                "symptoms": ["dull headache", "neck tightness", "sensitivity to noise"],
-                "red_flags": [],
-                "correct_treatments": ["Ibuprofen", "Rest", "Stress management"],
-                "incorrect_treatments": ["Opioids", "Surgery"]
-            },
-            {
-                "name": "Sam Chen",
-                "disease": "Acute Gastroenteritis",
-                "presenting_summary": "I've been vomiting since last night and feel terrible.",
-                "age_range": "25-34",
-                "sex": "male",
-                "onset_days": 1,
-                "severity": "moderate",
-                "symptoms": ["vomiting", "nausea", "watery diarrhea", "stomach cramps"],
-                "red_flags": ["Signs of dehydration"],
-                "correct_treatments": ["Oral Rehydration Solution", "Rest"],
-                "incorrect_treatments": ["Antibiotics", "Solid food immediately"]
-            }
-        ]
-        import random
-        return random.choice(fallbacks)
+    # Try each available API key until one works
+    max_attempts = len(API_KEYS) if API_KEYS else 1
+    
+    for attempt in range(max_attempts):
+        try:
+            llm = get_groq_llm(temperature=0.9, model_name="llama-3.1-8b-instant")
+            response = llm.invoke(messages)
+            content = response.content.strip()
+            # Clean up if wrapped in backticks
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.endswith("```"):
+                content = content[:-3]
+            return json.loads(content)
+        except Exception as e:
+            error_str = str(e).lower()
+            print(f"Generation attempt {attempt + 1} failed: {e}")
+            
+            # If rate limit or API error, try next key
+            if "rate" in error_str or "429" in error_str or "limit" in error_str:
+                if rotate_api_key():
+                    print(f"Rotating to next API key for attempt {attempt + 2}...")
+                    continue
+            
+            # If not a rate limit or no more keys, break to fallback
+            break
+    
+    print(f"All API keys exhausted or non-rate-limit error. Using fallback case.")
+    # Fallback cases (Offline/Error mode)
+    fallbacks = [
+        {
+            "name": "Alex Smith",
+            "disease": "Common Cold",
+            "presenting_summary": "Runny nose and mild sore throat.",
+            "age_range": "18-24",
+            "sex": "male",
+            "onset_days": 2,
+            "severity": "mild",
+            "symptoms": ["runny nose", "sore throat", "sneezing", "mild fatigue"],
+            "red_flags": [],
+            "correct_treatments": ["Rest", "Hydration", "Paracetamol"],
+            "incorrect_treatments": ["Antibiotics"]
+        },
+        {
+            "name": "Maria Garcia",
+            "disease": "Tension Headache",
+            "presenting_summary": "Constant dull pain around my forehead for two days.",
+            "age_range": "35-44",
+            "sex": "female",
+            "onset_days": 2,
+            "severity": "moderate",
+            "symptoms": ["dull headache", "neck tightness", "sensitivity to noise"],
+            "red_flags": [],
+            "correct_treatments": ["Ibuprofen", "Rest", "Stress management"],
+            "incorrect_treatments": ["Opioids", "Surgery"]
+        },
+        {
+            "name": "Sam Chen",
+            "disease": "Acute Gastroenteritis",
+            "presenting_summary": "I've been vomiting since last night and feel terrible.",
+            "age_range": "25-34",
+            "sex": "male",
+            "onset_days": 1,
+            "severity": "moderate",
+            "symptoms": ["vomiting", "nausea", "watery diarrhea", "stomach cramps"],
+            "red_flags": ["Signs of dehydration"],
+            "correct_treatments": ["Oral Rehydration Solution", "Rest"],
+            "incorrect_treatments": ["Antibiotics", "Solid food immediately"]
+        }
+    ]
+    import random
+    return random.choice(fallbacks)
 
 # --- EXTRACTION AGENT ---
 
