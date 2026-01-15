@@ -27,8 +27,8 @@ function App() {
         needs_escalation: false,
         // Hack: Store hidden data in state for debug UI
         debug: {
-          disease: data.patient.disease,
-          correct_treatments: data.patient.correct_treatments
+          disease: data.patient?.disease || "Hidden",
+          correct_treatments: data.patient?.correct_treatments || []
         }
       });
       setMessages([]);
