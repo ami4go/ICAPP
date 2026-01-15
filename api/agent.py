@@ -88,13 +88,20 @@ Operational rules:
 - Maintain memory across the session (until /end).
 - Respect user privacy and safety; do not store or expose any personal identifying information (PII) of real users, but YOU are a simulated persona so you can share your simulated name.
 
-**OUTPUT FORMAT INSTRUCTIONS**:
-You MUST return your response as a valid JSON object.
+
+**OUTPUT FORMAT - STRICT JSON ONLY**:
+You represent a backend system. You MUST return your response as a valid JSON object.
+Example:
 {{
   "reply_text": "Doctor, my stomach really hurts.",
   "metadata": {{ "revealed": ["stomach pain"], "needs_escalation": false, "status": "active" }}
 }}
-Do NOT output any text outside this JSON.
+
+Rules:
+1. "reply_text" contains your spoken response to the doctor.
+2. "metadata" tracks the game state. "revealed" is a list of NEWLY revealed symptoms in this turn.
+3. Do NOT output any markdown, backticks, or text outside this JSON.
+4. If you fail to output JSON, the system will crash.
 """
 
 # --- Logic ---
@@ -229,7 +236,6 @@ def process_turn(state: PatientState, user_input: str) -> Dict:
         reply_text = parsed.get("reply_text", "")
         metadata = parsed.get("metadata", {})
         
-        # If we successfully parsed specific keys, return them
         return {
             "reply": reply_text,
             "metadata": metadata,
@@ -238,46 +244,62 @@ def process_turn(state: PatientState, user_input: str) -> Dict:
     except json.JSONDecodeError:
         pass
 
-    # Attempt 2: Hybrid Content (Text + JSON)
-    # Look for the LAST occurrence of a JSON-like object for metadata
-    try:
-        json_candidates = re.findall(r'(\{.*\})', content, re.DOTALL)
-        if json_candidates:
-            # Take the last one which is likely the metadata object
-            last_json_str = json_candidates[-1]
-            try:
-                parsed = json.loads(last_json_str)
-                
-                # Check if this looks like our metadata or full object
-                if "metadata" in parsed: 
-                     # It's the full object nested in text?
-                     metadata = parsed["metadata"]
-                     reply_text = parsed.get("reply_text", "")
-                elif "revealed" in parsed or "status" in parsed:
-                     # It's just the metadata object
-                     metadata = parsed
-                     # The text is everything BEFORE this JSON
-                     reply_text = content.replace(last_json_str, "").strip()
-                else:
-                     # Unknown JSON, treat as text
-                     reply_text = content
-            except:
-                 reply_text = content
-        else:
-            reply_text = content
+    # Attempt 2: Hybrid Content (Regex extraction)
+    # Look for the JSON object at the end
+    json_candidates = re.findall(r'(\{.*\})', content, re.DOTALL)
+    if json_candidates:
+        last_json_str = json_candidates[-1]
+        try:
+            parsed = json.loads(last_json_str)
+            if "metadata" in parsed: 
+                 metadata = parsed["metadata"]
+                 reply_text = parsed.get("reply_text", "")
+            elif "revealed" in parsed or "status" in parsed:
+                 metadata = parsed
+                 # The text is likely everything BEFORE this JSON
+                 reply_text = content.replace(last_json_str, "").strip()
+            else:
+                 metadata = None # Valid JSON but not our schema
             
-        # Fallback metadata
-        if not metadata:
-            metadata = {"status": "active", "revealed": [], "needs_escalation": False}
+            if metadata:
+                return {
+                    "reply": reply_text,
+                    "metadata": metadata,
+                    "history_update": [HumanMessage(content=user_input), AIMessage(content=response.content)]
+                }
+        except:
+            pass
 
-        return {
-            "reply": reply_text,
-            "metadata": metadata,
-            "history_update": [HumanMessage(content=user_input), AIMessage(content=response.content)]
-        }
+    # Attempt 3: RETRY MECHANISM (Self-Correction)
+    # If we are here, we failed to extract metadata. The LLM forgot strict JSON.
+    # We will ask it to fix the format.
+    print(f"JSON parsing failed. Retrying with formatting instruction. Content was: {content[:50]}...")
+    
+    retry_message = HumanMessage(content="SYSTEM ERROR: You failed to return valid JSON. I need the metadata to track symptoms. Return your LAST response again, but strictly as a valid JSON object: { \"reply_text\": \"...\", \"metadata\": { ... } }")
+    messages.append(AIMessage(content=content)) # Add the failed response to history so it knows what to format
+    messages.append(retry_message)
+    
+    try:
+        retry_response = llm.invoke(messages)
+        retry_content = retry_response.content.strip()
         
+        # Clean retry content
+        if retry_content.startswith("```json"):
+            retry_content = retry_content[7:]
+        if retry_content.endswith("```"):
+            retry_content = retry_content[:-3]
+        retry_content = retry_content.strip()
+        
+        parsed = json.loads(retry_content)
+        return {
+            "reply": parsed.get("reply_text", ""),
+            "metadata": parsed.get("metadata", {}),
+            # Note: History update should only include the FINAL valid turn to avoid clutter
+            "history_update": [HumanMessage(content=user_input), AIMessage(content=retry_response.content)]
+        }
     except Exception as e:
-        print(f"Error parsing turn response: {e}. Content: {content}")
+        print(f"Retry failed: {e}")
+        # Final Fallback
         return {
             "reply": content, 
             "metadata": {"status": "active", "revealed": [], "needs_escalation": False},
