@@ -4,4 +4,4 @@ python-dotenv
 langchain
 langchain-groq
 langgraph
-redis
+

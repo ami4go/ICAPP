@@ -99,16 +99,15 @@ Do NOT output any text outside this JSON.
 
 # --- Logic ---
 
-def get_groq_llm(temperature=0.4, model_name="llama-3.3-70b-versatile"):
+def get_groq_llm(temperature=0.4):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise ValueError("GROQ_API_KEY not set")
-    return ChatGroq(temperature=temperature, model_name=model_name, groq_api_key=api_key)
+    return ChatGroq(temperature=temperature, model_name="llama-3.3-70b-versatile", groq_api_key=api_key)
 
 def generate_patient_case() -> PatientCase:
     # High temperature for maximum variety
-    # Use 8b model for speed to avoid Vercel timeouts (10s limit)
-    llm = get_groq_llm(temperature=0.9, model_name="llama-3.1-8b-instant")
+    llm = get_groq_llm(temperature=0.9)
     import random
     entropy = random.randint(0, 999999)
     # Pick a random domain to force the LLM out of its local minima
