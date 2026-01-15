@@ -134,9 +134,7 @@ const PatientCard = ({ patient, state }) => {
                     background: 'rgba(139, 92, 246, 0.1)',
                     border: '1px solid rgba(139, 92, 246, 0.3)',
                     borderRadius: '12px',
-                    padding: '1rem',
-                    maxHeight: '200px',
-                    overflowY: 'auto'
+                    padding: '1.25rem'
                 }}>
                     <h4 style={{
                         margin: '0 0 0.75rem 0',
