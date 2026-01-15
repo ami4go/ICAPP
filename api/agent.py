@@ -1,13 +1,12 @@
 import os
 import json
 from typing import TypedDict, List, Dict, Any, Optional
-# Imports moved to functions for lazy loading to speed up Vercel cold boot
-# from langgraph.graph import StateGraph, END
-# from langchain_groq import ChatGroq
-# from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langgraph.graph import StateGraph, END
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from dotenv import load_dotenv
 
 # Load environment variables (ensure this is called in app.py or here)
-from dotenv import load_dotenv
 load_dotenv()
 
 # --- Types ---
@@ -101,7 +100,6 @@ Do NOT output any text outside this JSON.
 # --- Logic ---
 
 def get_groq_llm(temperature=0.4, model_name="llama-3.3-70b-versatile"):
-    from langchain_groq import ChatGroq
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise ValueError("GROQ_API_KEY not set")
@@ -130,11 +128,11 @@ def generate_patient_case() -> PatientCase:
     else:
         forced_name = f"{random.choice(female_first_names)} {random.choice(last_names)}"
     
-    from langchain_core.messages import SystemMessage, HumanMessage
     messages = [
         SystemMessage(content=PATIENT_GENERATOR_PROMPT),
         HumanMessage(content=f"Generate a NEW unique patient case now. Variance Seed: {entropy}. Focus Domain: {selected_domain}. Sex: {forced_sex}. Name: {forced_name}. Ensure distinct age from previous. Prioritize COMMON everyday conditions (e.g., fractures, flu, wounds, migraines) over rare diseases.")
     ]
+    
     try:
         # TIMEOUT PROTECTION: Vercel has a 10s limit.
         # If generation fails for ANY reason (timeout, API error), return a fallback immediately.
@@ -195,9 +193,7 @@ def generate_patient_case() -> PatientCase:
 
 def process_turn(state: PatientState, user_input: str) -> Dict:
     llm = get_groq_llm(temperature=0.5)
-    
-    from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-    
+
     system_prompt = get_master_system_prompt(state["patient_case"])
     
     messages = [SystemMessage(content=system_prompt)]
