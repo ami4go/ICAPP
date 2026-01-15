@@ -1,17 +1,43 @@
 import React from 'react';
+import { api } from '../services/api';
 
 const PatientCard = ({ patient, state }) => {
-    const [revealed, setRevealed] = React.useState(false);
+    const [analysisResult, setAnalysisResult] = React.useState(null);
+    const [analyzing, setAnalyzing] = React.useState(false);
+    const [lastAnalyzedCount, setLastAnalyzedCount] = React.useState(0);
 
-    // Reset revealed state when patient changes
+    // Reset analysis when patient changes
     React.useEffect(() => {
-        setRevealed(false);
+        setAnalysisResult(null);
+        setLastAnalyzedCount(0);
     }, [patient]);
+
+    // Show analyze button if we have 3+ symptoms AND either:
+    // - Haven't analyzed yet, OR
+    // - Have new symptoms since last analysis
+    const symptomCount = state.revealed_symptoms?.length || 0;
+    const shouldShowAnalyzeButton = symptomCount >= 3 && symptomCount > lastAnalyzedCount;
+
+    const handleAnalyze = async () => {
+        if (!state.revealed_symptoms || state.revealed_symptoms.length < 1) return;
+
+        setAnalyzing(true);
+        try {
+            const result = await api.analyzeSymptoms(state.revealed_symptoms);
+            setAnalysisResult(result.conditions || []);
+            setLastAnalyzedCount(symptomCount);
+        } catch (err) {
+            console.error("Analysis failed:", err);
+            setAnalysisResult([{ name: "Analysis failed", confidence: "N/A", reasoning: "Please try again" }]);
+        } finally {
+            setAnalyzing(false);
+        }
+    };
 
     if (!patient) return null;
 
     return (
-        <div className="patient-card glass-panel">
+        <div className="patient-card glass-panel" style={{ overflow: 'hidden' }}>
             <div className="patient-header">
                 <div className="avatar-placeholder">
                     {state.status === 'resolved' ? '😊' : state.needs_escalation ? '😟' : '😐'}
@@ -35,7 +61,6 @@ const PatientCard = ({ patient, state }) => {
                     <span className="label">Sex</span>
                     <span className="value">{patient.sex}</span>
                 </div>
-
             </div>
 
             <div className="symptoms-section" style={{
@@ -79,84 +104,79 @@ const PatientCard = ({ patient, state }) => {
                 )}
             </div>
 
-            {/* Analyze Button Section */}
-            {state.revealed_symptoms && state.revealed_symptoms.length >= 3 && (
+            {/* Analyze Button - Appears when 3+ symptoms and new symptoms since last analysis */}
+            {shouldShowAnalyzeButton && (
                 <div style={{ marginTop: '1rem' }}>
-                    {!revealed ? (
-                        <button
-                            onClick={() => setRevealed(true)}
-                            style={{
-                                width: '100%',
-                                padding: '10px 16px',
-                                background: 'linear-gradient(135deg, #0ea5e9, #8b5cf6)',
-                                border: 'none',
-                                borderRadius: '8px',
-                                color: 'white',
-                                fontSize: '0.9rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                transition: 'transform 0.2s, box-shadow 0.2s'
-                            }}
-                            onMouseOver={(e) => {
-                                e.target.style.transform = 'translateY(-2px)';
-                                e.target.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.3)';
-                            }}
-                            onMouseOut={(e) => {
-                                e.target.style.transform = 'translateY(0)';
-                                e.target.style.boxShadow = 'none';
-                            }}
-                        >
-                            🔍 Analyze Symptoms
-                        </button>
-                    ) : (
-                        <div className="analysis-result fade-in" style={{
-                            background: 'rgba(139, 92, 246, 0.1)',
-                            border: '1px solid rgba(139, 92, 246, 0.3)',
-                            borderRadius: '12px',
-                            padding: '1rem'
-                        }}>
-                            <h4 style={{
-                                margin: '0 0 0.5rem 0',
-                                fontSize: '0.8rem',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em',
-                                color: 'rgba(255, 255, 255, 0.6)'
-                            }}>
-                                Possible Condition
-                            </h4>
-                            <p style={{
-                                margin: 0,
-                                fontSize: '1.1rem',
-                                fontWeight: '600',
-                                color: '#a78bfa'
-                            }}>
-                                {state.debug?.disease || 'Analysis complete'}
-                            </p>
-                            <button
-                                onClick={() => setRevealed(false)}
-                                style={{
-                                    marginTop: '0.75rem',
-                                    padding: '4px 12px',
-                                    background: 'transparent',
-                                    border: '1px solid rgba(139, 92, 246, 0.5)',
-                                    borderRadius: '4px',
-                                    color: '#a78bfa',
-                                    fontSize: '0.8rem',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Hide
-                            </button>
-                        </div>
-                    )}
+                    <button
+                        onClick={handleAnalyze}
+                        disabled={analyzing}
+                        style={{
+                            width: '100%',
+                            padding: '10px 16px',
+                            background: analyzing ? '#666' : 'linear-gradient(135deg, #0ea5e9, #8b5cf6)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: 'white',
+                            fontSize: '0.9rem',
+                            fontWeight: '600',
+                            cursor: analyzing ? 'wait' : 'pointer'
+                        }}
+                    >
+                        {analyzing ? '⏳ Analyzing...' : '🔍 Analyze Symptoms'}
+                    </button>
                 </div>
             )}
 
-        </div >
+            {/* Analysis Results */}
+            {analysisResult && analysisResult.length > 0 && (
+                <div style={{
+                    marginTop: '1rem',
+                    background: 'rgba(139, 92, 246, 0.1)',
+                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                    borderRadius: '12px',
+                    padding: '1rem',
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                }}>
+                    <h4 style={{
+                        margin: '0 0 0.75rem 0',
+                        fontSize: '0.8rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        color: 'rgba(255, 255, 255, 0.6)'
+                    }}>
+                        Possible Conditions
+                    </h4>
+                    {analysisResult.map((condition, i) => (
+                        <div key={i} style={{
+                            marginBottom: i < analysisResult.length - 1 ? '0.75rem' : 0,
+                            paddingBottom: i < analysisResult.length - 1 ? '0.75rem' : 0,
+                            borderBottom: i < analysisResult.length - 1 ? '1px solid rgba(139, 92, 246, 0.2)' : 'none'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: '600', color: '#a78bfa', fontSize: '0.95rem' }}>
+                                    {condition.name}
+                                </span>
+                                <span style={{
+                                    fontSize: '0.7rem',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    background: condition.confidence === 'High' ? 'rgba(34, 197, 94, 0.2)' :
+                                        condition.confidence === 'Medium' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                    color: condition.confidence === 'High' ? '#22c55e' :
+                                        condition.confidence === 'Medium' ? '#eab308' : '#ef4444'
+                                }}>
+                                    {condition.confidence}
+                                </span>
+                            </div>
+                            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', opacity: 0.7 }}>
+                                {condition.reasoning}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 };
 

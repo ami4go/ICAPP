@@ -125,6 +125,69 @@ def end_session():
         return jsonify({"message": "Session ended"})
     return jsonify({"message": "Session not found"}), 404
 
+@app.route('/api/analyze', methods=['POST'])
+def analyze_symptoms():
+    """Analyze revealed symptoms using LLM to suggest possible conditions."""
+    from agent import get_groq_llm, rotate_api_key, API_KEYS
+    from langchain_core.messages import HumanMessage
+    
+    data = request.json
+    symptoms = data.get('symptoms', [])
+    
+    if not symptoms or len(symptoms) < 1:
+        return jsonify({"error": "No symptoms provided"}), 400
+    
+    # Build prompt for diagnosis analysis
+    prompt = f"""You are a medical diagnostic assistant (for educational simulation only).
+Given the following symptoms, suggest the top 3 most likely medical conditions.
+
+Symptoms: {', '.join(symptoms)}
+
+Return ONLY a JSON object in this exact format:
+{{
+    "conditions": [
+        {{"name": "Condition Name", "confidence": "High/Medium/Low", "reasoning": "brief explanation"}},
+        {{"name": "Condition Name", "confidence": "High/Medium/Low", "reasoning": "brief explanation"}},
+        {{"name": "Condition Name", "confidence": "High/Medium/Low", "reasoning": "brief explanation"}}
+    ]
+}}
+
+IMPORTANT: Return ONLY the JSON, no markdown, no extra text."""
+
+    max_attempts = len(API_KEYS) if API_KEYS else 1
+    
+    for attempt in range(max_attempts):
+        try:
+            llm = get_groq_llm(temperature=0.3, model_name="llama-3.1-8b-instant")
+            response = llm.invoke([HumanMessage(content=prompt)])
+            content = response.content.strip()
+            
+            # Clean JSON
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+            
+            result = json.loads(content)
+            return jsonify(result)
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            print(f"Analyze attempt {attempt + 1} failed: {e}")
+            
+            if "rate" in error_str or "429" in error_str or "limit" in error_str:
+                if rotate_api_key():
+                    continue
+            break
+    
+    # Fallback response
+    return jsonify({
+        "conditions": [
+            {"name": "Analysis unavailable", "confidence": "N/A", "reasoning": "API rate limit reached. Try again later."}
+        ]
+    })
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
