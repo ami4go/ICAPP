@@ -148,8 +148,8 @@ def generate_patient_case() -> PatientCase:
         return json.loads(content)
     except Exception as e:
         print(f"Generation failed (likely timeout): {e}")
-        import random
-        return random.choice(fallbacks)
+        # Fallback cases (Offline/Error mode)
+        fallbacks = [
             {
                 "name": "Alex Smith",
                 "disease": "Common Cold",
