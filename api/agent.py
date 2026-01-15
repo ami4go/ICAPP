@@ -200,195 +200,83 @@ def generate_patient_case() -> PatientCase:
 
 # --- EXTRACTION AGENT ---
 
-def perform_symptom_extraction(text: str, known_symptoms: List[str]) -> List[str]:
-    """
-    Dedicated agent to extract symptoms from text against a known list.
-    Uses a fast, cheap model (Llama-3 8b) to ensure low latency.
-    """
-    if not text:
-        return []
 
-    llm = get_groq_llm(temperature=0.1, model_name="llama-3.1-8b-instant")
-    
-    prompt = f"""
-    SYSTEM: You are a medical data extractor.
-    Task: Identify which of the following KNOWN SYMPTOMS are present in the INPUT TEXT.
-    
-    KNOWN SYMPTOMS DATABASE: {json.dumps(known_symptoms)}
-    
-    INPUT TEXT: "{text}"
-    
-    INSTRUCTIONS:
-    1. Output a JSON object with a single key "found_symptoms".
-    2. "found_symptoms" must be a list of strings from the KNOWN SYMPTOMS DATABASE.
-    3. Use semantic matching (e.g., "head hurts" -> "headache").
-    4. If no symptoms found, return empty list.
-    5. STRICT JSON ONLY. No markdown.
-    """
-    
-    try:
-        response = llm.invoke([HumanMessage(content=prompt)])
-        content = response.content.strip()
-        
-        # Clean JSON
-        if content.startswith("```json"): content = content[7:]
-        if content.endswith("```"): content = content[:-3]
-        content = content.strip()
-        
-        data = json.loads(content)
-        return data.get("found_symptoms", [])
-        
-    except Exception as e:
-        print(f"Extraction Agent Failed: {e}")
-        return []
 
 def process_turn(state: PatientState, user_input: str) -> Dict:
-    llm = get_groq_llm(temperature=0.5)
+    # Use 70b-versatile for high quality roleplay + JSON adherence
+    llm = get_groq_llm(temperature=0.5, model_name="llama-3.3-70b-versatile")
 
     system_prompt = get_master_system_prompt(state["patient_case"])
     
     messages = [SystemMessage(content=system_prompt)]
     
-    # Add history
-    # Converting specific state format to LangChain messages might be needed
-    # For now, let's assume 'messages' stores LangChain message objects or dicts
     if "messages" in state and state["messages"]:
         messages.extend(state["messages"])
         
-    # Inject strict instruction into the user's message to toggle "Active Mode" JSON compliance
-    per_turn_instruction = f"""
-{user_input}
-
-[SYSTEM INSTRUCTION: You MUST return a JSON object with 'metadata' tracking revealed symptoms. 
-Current revealed: {state.get('revealed_symptoms', [])}.
-If I just revealed a new symptom, add it to the list inside 'metadata'.
-Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": "..." }} }} ]
-"""
-    messages.append(HumanMessage(content=per_turn_instruction))
+    messages.append(HumanMessage(content=user_input))
     
-    response = llm.invoke(messages)
-    
-    # Parse response
-    content = response.content.strip()
-    import re
-    
-    reply_text = ""
-    metadata = {}
+    # Simple single-shot invocation
     try:
-        # Pre-cleaning
-        clean_content = content.strip()
-        if clean_content.startswith("```json"):
-            clean_content = clean_content[7:]
-        if clean_content.endswith("```"):
-            clean_content = clean_content[:-3]
-        clean_content = clean_content.strip()
+        response = llm.invoke(messages)
+        content = response.content.strip()
         
-        parsed = json.loads(clean_content)
-        reply_text = parsed.get("reply_text", "")
-        metadata = parsed.get("metadata", {})
+        # Basic cleanup
+        if content.startswith("```json"): content = content[7:]
+        if content.endswith("```"): content = content[:-3]
+        content = content.strip()
         
-        parsed = json.loads(clean_content)
-        reply_text = parsed.get("reply_text", "")
-        metadata = parsed.get("metadata", {})
+        import re
+        reply_text = ""
+        metadata = {}
         
-        # --- DUAL-AGENT EXTRACTION ---
-        if reply_text:
-            known_symptoms = state["patient_case"].get("symptoms", [])
-            extracted = perform_symptom_extraction(reply_text, known_symptoms)
-            current_revealed = set(metadata.get("revealed", []))
-            for s in extracted: current_revealed.add(s)
-            metadata["revealed"] = list(current_revealed)
-        # -----------------------------
+        try:
+             parsed = json.loads(content)
+             reply_text = parsed.get("reply_text", "")
+             metadata = parsed.get("metadata", {})
+        except:
+             # Fallback regex
+             candidates = re.findall(r'(\{.*\})', content, re.DOTALL)
+             if candidates:
+                 try:
+                     parsed = json.loads(candidates[-1])
+                     if "metadata" in parsed:
+                         metadata = parsed["metadata"]
+                         reply_text = parsed.get("reply_text", "")
+                     elif "revealed" in parsed:
+                         metadata = parsed
+                         reply_text = content.replace(candidates[-1], "").strip()
+                 except:
+                     reply_text = content
+             else:
+                 reply_text = content
+
+        # --- SIMPLE FALLBACK SCANNER ---
+        # If the LLM mentions a symptom in text but forgets metadata, we catch it.
+        # This is the "safe" version used locally.
+        known = state["patient_case"].get("symptoms", [])
+        revealed = set(metadata.get("revealed", []))
+        
+        if not revealed:
+             # Only scan if LLM failed to tag explicit symptoms
+             for s in known:
+                 if s.lower() in reply_text.lower():
+                     revealed.add(s)
+        
+        metadata["revealed"] = list(revealed)
+        # -------------------------------
 
         return {
             "reply": reply_text,
             "metadata": metadata,
             "history_update": [HumanMessage(content=user_input), AIMessage(content=response.content)]
         }
-    except json.JSONDecodeError:
-        pass
-
-    # Attempt 2: Hybrid Content (Regex extraction)
-    # Look for the JSON object at the end
-    json_candidates = re.findall(r'(\{.*\})', content, re.DOTALL)
-    if json_candidates:
-        last_json_str = json_candidates[-1]
-        try:
-            parsed = json.loads(last_json_str)
-            if "metadata" in parsed: 
-                 metadata = parsed["metadata"]
-                 reply_text = parsed.get("reply_text", "")
-            elif "revealed" in parsed or "status" in parsed:
-                 metadata = parsed
-                 # The text is likely everything BEFORE this JSON
-                 reply_text = content.replace(last_json_str, "").strip()
-            else:
-                 metadata = None # Valid JSON but not our schema
-            
-            if metadata:
-                # --- DUAL-AGENT EXTRACTION ---
-                if reply_text:
-                    known_symptoms = state["patient_case"].get("symptoms", [])
-                    extracted = perform_symptom_extraction(reply_text, known_symptoms)
-                    current_revealed = set(metadata.get("revealed", []))
-                    for s in extracted: current_revealed.add(s)
-                    metadata["revealed"] = list(current_revealed)
-                # -----------------------------
-
-                return {
-                    "reply": reply_text,
-                    "metadata": metadata,
-                    "history_update": [HumanMessage(content=user_input), AIMessage(content=response.content)]
-                }
-        except:
-            pass
-
-    # Attempt 3: RETRY MECHANISM (Self-Correction)
-    # If we are here, we failed to extract metadata. The LLM forgot strict JSON.
-    # We will ask it to fix the format.
-    print(f"JSON parsing failed. Retrying with formatting instruction. Content was: {content[:50]}...")
-    
-    retry_message = HumanMessage(content="SYSTEM ERROR: You failed to return valid JSON. I need the metadata to track symptoms. Return your LAST response again, but strictly as a valid JSON object: { \"reply_text\": \"...\", \"metadata\": { ... } }")
-    messages.append(AIMessage(content=content)) # Add the failed response to history so it knows what to format
-    messages.append(retry_message)
-    
-    try:
-        retry_response = llm.invoke(messages)
-        retry_content = retry_response.content.strip()
-        
-        # Clean retry content
-        if retry_content.startswith("```json"):
-            retry_content = retry_content[7:]
-        if retry_content.endswith("```"):
-            retry_content = retry_content[:-3]
-        retry_content = retry_content.strip()
-        
-        parsed = json.loads(retry_content)
-        reply_text = parsed.get("reply_text", "")
-        metadata = parsed.get("metadata", {})
-        
-        # --- DUAL-AGENT EXTRACTION ---
-        if reply_text:
-            known_symptoms = state["patient_case"].get("symptoms", [])
-            extracted = perform_symptom_extraction(reply_text, known_symptoms)
-            current_revealed = set(metadata.get("revealed", []))
-            for s in extracted: current_revealed.add(s)
-            metadata["revealed"] = list(current_revealed)
-        # -----------------------------
-
-        return {
-            "reply": reply_text,
-            "metadata": metadata,
-            # Note: History update should only include the FINAL valid turn to avoid clutter
-            "history_update": [HumanMessage(content=user_input), AIMessage(content=retry_response.content)]
-        }
     except Exception as e:
-        print(f"Retry failed: {e}")
-        # Final Fallback
+        print(f"Agent Error: {e}")
+        # Fallback to keep the app alive
         return {
-            "reply": content, 
+            "reply": "I'm not feeling well... (System Error: Invalid JSON)", 
             "metadata": {"status": "active", "revealed": [], "needs_escalation": False},
-            "history_update": [HumanMessage(content=user_input), AIMessage(content=content)]
+            "history_update": [HumanMessage(content=user_input), AIMessage(content=str(e))]
         }
 
 # --- LangGraph Setup (Optional Wrapper) ---
