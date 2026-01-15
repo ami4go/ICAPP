@@ -38,18 +38,44 @@ const PatientCard = ({ patient, state }) => {
 
             </div>
 
-            <div className="symptoms-timeline">
-                <h4>Revealed Symptoms</h4>
+            <div className="symptoms-section" style={{
+                marginTop: '1.5rem',
+                background: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '12px',
+                padding: '1rem',
+                border: '1px solid rgba(255, 255, 255, 0.05)'
+            }}>
+                <h4 style={{
+                    marginTop: 0,
+                    marginBottom: '0.8rem',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: 'rgba(255, 255, 255, 0.6)'
+                }}>
+                    Diagnosis Key Facts
+                </h4>
+
                 {state.revealed_symptoms && state.revealed_symptoms.length > 0 ? (
-                    <ul>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                         {state.revealed_symptoms.map((sym, i) => (
-                            <li key={i} className="symptom-item fade-in">
+                            <span key={i} className="symptom-chip fade-in" style={{
+                                background: 'rgba(14, 165, 233, 0.15)',
+                                color: '#38bdf8',
+                                border: '1px solid rgba(14, 165, 233, 0.3)',
+                                padding: '4px 10px',
+                                borderRadius: '20px',
+                                fontSize: '0.85rem',
+                                fontWeight: '500'
+                            }}>
                                 {sym}
-                            </li>
+                            </span>
                         ))}
-                    </ul>
+                    </div>
                 ) : (
-                    <p className="empty-text">Ask questions to reveal symptoms.</p>
+                    <p className="empty-text" style={{ fontStyle: 'italic', opacity: 0.5 }}>
+                        No symptoms revealed yet.
+                    </p>
                 )}
             </div>
 
