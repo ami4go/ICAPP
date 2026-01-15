@@ -42,7 +42,12 @@ def start_session():
         return jsonify({
             "session_id": session_id, 
             "message": "Session started",
-            "patient_summary": patient_case["presenting_summary"] # Only reveal summary initially
+            "patient_summary": patient_case["presenting_summary"],
+            "patient": {
+                "name": patient_case.get("name", "Unknown"),
+                "age_range": patient_case.get("age_range", "Unknown"),
+                "sex": patient_case.get("sex", "Unknown")
+            }
         })
     except Exception as e:
         print(f"Error starting session: {e}")
