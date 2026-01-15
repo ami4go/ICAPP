@@ -5,8 +5,12 @@
             "destination": "/api/index.py"
         },
         {
+            "source": "/(.*)\\.(.*)",
+            "destination": "/frontend/dist/$1.$2"
+        },
+        {
             "source": "/(.*)",
-            "destination": "/frontend/index.html"
+            "destination": "/frontend/dist/index.html"
         }
     ],
     "builds": [
