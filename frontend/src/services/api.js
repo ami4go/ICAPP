@@ -32,6 +32,17 @@ export const api = {
         return data;
     },
 
+    deleteHistory: async (username, sessionId = null) => {
+        const response = await fetch(`${API_BASE_URL}/history/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, session_id: sessionId })
+        });
+        const data = await response.json();
+        if (!response.ok) throw data;
+        return data;
+    },
+
     // Session endpoints
     startSession: async (doctorUsername = '') => {
         const response = await fetch(`${API_BASE_URL}/start`, {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 
-const HistoryPage = ({ doctorUsername, doctorName, onBack, onViewSession }) => {
+const HistoryPage = ({ doctorUsername, doctorName, onBack }) => {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedSession, setSelectedSession] = useState(null);
@@ -18,6 +18,29 @@ const HistoryPage = ({ doctorUsername, doctorName, onBack, onViewSession }) => {
             console.error("Failed to load history:", err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDeleteSession = async (sessionId, e) => {
+        e.stopPropagation();
+        if (!confirm('Delete this session from history?')) return;
+
+        try {
+            await api.deleteHistory(doctorUsername, sessionId);
+            setHistory(prev => prev.filter(h => h.session_id !== sessionId));
+        } catch (err) {
+            console.error("Failed to delete:", err);
+        }
+    };
+
+    const handleClearAll = async () => {
+        if (!confirm('Clear ALL session history? This cannot be undone.')) return;
+
+        try {
+            await api.deleteHistory(doctorUsername);
+            setHistory([]);
+        } catch (err) {
+            console.error("Failed to clear:", err);
         }
     };
 
@@ -70,7 +93,7 @@ const HistoryPage = ({ doctorUsername, doctorName, onBack, onViewSession }) => {
 
                         <h4 style={{ color: '#94a3b8', margin: '0 0 1rem 0' }}>Chat Transcript:</h4>
                         <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                            {selectedSession.chat_history.map((msg, i) => (
+                            {selectedSession.chat_history && selectedSession.chat_history.map((msg, i) => (
                                 <div key={i} style={{
                                     marginBottom: '1rem',
                                     padding: '0.75rem 1rem',
@@ -105,13 +128,30 @@ const HistoryPage = ({ doctorUsername, doctorName, onBack, onViewSession }) => {
                         <h1 style={{ color: '#0ea5a4', margin: 0 }}>Session History</h1>
                         <p style={{ color: '#94a3b8', margin: '0.5rem 0 0 0' }}>Dr. {doctorName}</p>
                     </div>
-                    <button
-                        onClick={onBack}
-                        className="btn-primary"
-                        style={{ padding: '10px 20px' }}
-                    >
-                        New Session
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {history.length > 0 && (
+                            <button
+                                onClick={handleClearAll}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid #ef4444',
+                                    color: '#ef4444',
+                                    padding: '10px 16px',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                🗑️ Clear All
+                            </button>
+                        )}
+                        <button
+                            onClick={onBack}
+                            className="btn-primary"
+                            style={{ padding: '10px 20px' }}
+                        >
+                            New Session
+                        </button>
+                    </div>
                 </div>
 
                 {loading ? (
@@ -125,16 +165,13 @@ const HistoryPage = ({ doctorUsername, doctorName, onBack, onViewSession }) => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {history.map((session, i) => (
                             <div
-                                key={i}
+                                key={session.session_id || i}
                                 className="glass-panel"
                                 onClick={() => setSelectedSession(session)}
                                 style={{
                                     cursor: 'pointer',
-                                    transition: 'transform 0.2s',
                                     padding: '1.25rem'
                                 }}
-                                onMouseEnter={(e) => e.target.style.transform = 'translateX(5px)'}
-                                onMouseLeave={(e) => e.target.style.transform = 'translateX(0)'}
                             >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div>
@@ -144,16 +181,32 @@ const HistoryPage = ({ doctorUsername, doctorName, onBack, onViewSession }) => {
                                             {session.revealed_symptoms.length} symptoms revealed
                                         </p>
                                     </div>
-                                    <span style={{
-                                        background: session.status === 'resolved' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)',
-                                        color: session.status === 'resolved' ? '#10b981' : '#eab308',
-                                        padding: '4px 10px',
-                                        borderRadius: '20px',
-                                        fontSize: '0.8rem',
-                                        fontWeight: '600'
-                                    }}>
-                                        {session.status}
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span style={{
+                                            background: session.status === 'resolved' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)',
+                                            color: session.status === 'resolved' ? '#10b981' : '#eab308',
+                                            padding: '4px 10px',
+                                            borderRadius: '20px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: '600'
+                                        }}>
+                                            {session.status}
+                                        </span>
+                                        <button
+                                            onClick={(e) => handleDeleteSession(session.session_id, e)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: '#ef4444',
+                                                cursor: 'pointer',
+                                                padding: '4px 8px',
+                                                fontSize: '1rem'
+                                            }}
+                                            title="Delete session"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}

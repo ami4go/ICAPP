@@ -84,6 +84,27 @@ def get_history():
     
     return jsonify({"history": doctors[username]["history"]})
 
+@app.route('/api/history/delete', methods=['POST'])
+def delete_history():
+    """Delete a specific history entry or all history."""
+    data = request.json
+    username = data.get('username', '').strip().lower()
+    session_id = data.get('session_id', None)  # If None, delete all
+    
+    if not username or username not in doctors:
+        return jsonify({"error": "Doctor not found"}), 404
+    
+    if session_id:
+        # Delete specific session
+        doctors[username]["history"] = [
+            h for h in doctors[username]["history"] if h.get("session_id") != session_id
+        ]
+        return jsonify({"message": "Session deleted"})
+    else:
+        # Clear all history
+        doctors[username]["history"] = []
+        return jsonify({"message": "All history cleared"})
+
 @app.route('/api/start', methods=['POST'])
 def start_session():
     try:
