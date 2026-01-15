@@ -101,7 +101,16 @@ const AuthPage = ({ onAuthSuccess }) => {
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder="Dr. John Smith"
-                                style={{ width: '100%' }}
+                                style={{
+                                    width: '100%',
+                                    boxSizing: 'border-box',
+                                    padding: '0.75rem 1rem',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    borderRadius: '8px',
+                                    color: 'white',
+                                    fontSize: '1rem'
+                                }}
                                 required={!isLogin}
                             />
                         </div>
@@ -116,7 +125,16 @@ const AuthPage = ({ onAuthSuccess }) => {
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             placeholder="drsmith"
-                            style={{ width: '100%' }}
+                            style={{
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                padding: '0.75rem 1rem',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderRadius: '8px',
+                                color: 'white',
+                                fontSize: '1rem'
+                            }}
                             required
                         />
                     </div>
@@ -130,7 +148,16 @@ const AuthPage = ({ onAuthSuccess }) => {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="••••••••"
-                            style={{ width: '100%' }}
+                            style={{
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                padding: '0.75rem 1rem',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderRadius: '8px',
+                                color: 'white',
+                                fontSize: '1rem'
+                            }}
                             required
                         />
                     </div>
