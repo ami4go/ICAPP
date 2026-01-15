@@ -37,7 +37,7 @@ const PatientCard = ({ patient, state }) => {
     if (!patient) return null;
 
     return (
-        <div className="patient-card glass-panel" style={{ overflow: 'hidden' }}>
+        <div className="patient-card glass-panel" style={{ overflowY: 'auto' }}>
             <div className="patient-header">
                 <div className="avatar-placeholder">
                     {state.status === 'resolved' ? '😊' : state.needs_escalation ? '😟' : '😐'}
