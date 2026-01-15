@@ -135,8 +135,10 @@ def generate_patient_case() -> PatientCase:
         SystemMessage(content=PATIENT_GENERATOR_PROMPT),
         HumanMessage(content=f"Generate a NEW unique patient case now. Variance Seed: {entropy}. Focus Domain: {selected_domain}. Sex: {forced_sex}. Name: {forced_name}. Ensure distinct age from previous. Prioritize COMMON everyday conditions (e.g., fractures, flu, wounds, migraines) over rare diseases.")
     ]
-    response = llm.invoke(messages)
     try:
+        # TIMEOUT PROTECTION: Vercel has a 10s limit.
+        # If generation fails for ANY reason (timeout, API error), return a fallback immediately.
+        response = llm.invoke(messages)
         content = response.content.strip()
         # Clean up if wrapped in backticks
         if content.startswith("```json"):
@@ -145,10 +147,9 @@ def generate_patient_case() -> PatientCase:
             content = content[:-3]
         return json.loads(content)
     except Exception as e:
-        print(f"Error parsing generated case: {e}")
-        # Fallback case
-        # Fallback cases (Offline/Error mode)
-        fallbacks = [
+        print(f"Generation failed (likely timeout): {e}")
+        import random
+        return random.choice(fallbacks)
             {
                 "name": "Alex Smith",
                 "disease": "Common Cold",
@@ -194,12 +195,6 @@ def generate_patient_case() -> PatientCase:
 
 def process_turn(state: PatientState, user_input: str) -> Dict:
     llm = get_groq_llm(temperature=0.5)
-    
-    # Construct history
-    # The 'messages' in state should likely lead up to this. 
-    # But for a robust system prompt, we might want to re-inject the system prompt 
-    # or just rely on the conversation history if using a chat model.
-    # Given the requirement: "System prompt = Master patient prompt above (with patient_case injected)"
     
     from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
     
