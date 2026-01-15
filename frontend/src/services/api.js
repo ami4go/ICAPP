@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = BASE ? `${BASE}/api` : '/api';
 
 export const api = {
     startSession: async () => {
