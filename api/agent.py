@@ -99,15 +99,16 @@ Do NOT output any text outside this JSON.
 
 # --- Logic ---
 
-def get_groq_llm(temperature=0.4):
+def get_groq_llm(temperature=0.4, model_name="llama-3.3-70b-versatile"):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise ValueError("GROQ_API_KEY not set")
-    return ChatGroq(temperature=temperature, model_name="llama-3.3-70b-versatile", groq_api_key=api_key)
+    return ChatGroq(temperature=temperature, model_name=model_name, groq_api_key=api_key)
 
 def generate_patient_case() -> PatientCase:
     # High temperature for maximum variety
-    llm = get_groq_llm(temperature=0.9)
+    # Use 8b model for speed to avoid Vercel timeouts (10s limit)
+    llm = get_groq_llm(temperature=0.9, model_name="llama-3.1-8b-instant")
     import random
     entropy = random.randint(0, 999999)
     # Pick a random domain to force the LLM out of its local minima
@@ -117,7 +118,7 @@ def generate_patient_case() -> PatientCase:
     # Programmatically force 50/50 gender split to ensure diversity
     forced_sex = random.choice(["male", "female"])
     
-    # Force diverse names to avoid "Ethan/Emily" repetition
+    # Force diverse names to avoid repetition
     male_first_names = ["James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas", "Charles", "Daniel", "Matthew", "Anthony", "Donald", "Mark", "Paul", "Steven", "Andrew", "Kenneth", "Joshua", "Kevin", "Brian", "George", "Edward", "Ronald", "Timothy", "Jason", "Jeffrey", "Ryan", "Jacob", "Gary", "Nicholas", "Eric", "Jonathan", "Stephen", "Larry", "Justin", "Scott", "Brandon", "Benjamin"]
     female_first_names = ["Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen", "Nancy", "Lisa", "Betty", "Margaret", "Sandra", "Ashley", "Kimberly", "Emily", "Donna", "Michelle", "Dorothy", "Carol", "Amanda", "Melissa", "Deborah", "Stephanie", "Rebecca", "Sharon", "Laura", "Cynthia", "Kathleen", "Amy", "Shirley", "Angela", "Helen", "Anna", "Brenda", "Pamela", "Nicole"]
     last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores", "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell", "Carter", "Roberts"]
