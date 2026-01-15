@@ -92,7 +92,7 @@ def message():
             "reply": result["reply"],
             "metadata": result.get("metadata", {}),
             "state_summary": {
-                "revealed_count": len(state["revealed_symptoms"]),
+                "revealed_symptoms": state["revealed_symptoms"],
                 "status": state["status"]
             }
         })
