@@ -230,8 +230,6 @@ Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": ".
     
     reply_text = ""
     metadata = {}
-    
-    # Attempt 1: Parse pure JSON
     try:
         # Pre-cleaning
         clean_content = content.strip()
@@ -245,6 +243,15 @@ Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": ".
         reply_text = parsed.get("reply_text", "")
         metadata = parsed.get("metadata", {})
         
+        # --- SCANNER ---
+        known_symptoms = state["patient_case"].get("symptoms", [])
+        current_revealed = set(metadata.get("revealed", []))
+        for s in known_symptoms:
+            if s.lower() in reply_text.lower():
+                current_revealed.add(s)
+        metadata["revealed"] = list(current_revealed)
+        # --- END SCANNER ---
+
         return {
             "reply": reply_text,
             "metadata": metadata,
@@ -271,6 +278,15 @@ Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": ".
                  metadata = None # Valid JSON but not our schema
             
             if metadata:
+                # --- SCANNER ---
+                known_symptoms = state["patient_case"].get("symptoms", [])
+                current_revealed = set(metadata.get("revealed", []))
+                for s in known_symptoms:
+                    if s.lower() in reply_text.lower():
+                        current_revealed.add(s)
+                metadata["revealed"] = list(current_revealed)
+                # --- END SCANNER ---
+
                 return {
                     "reply": reply_text,
                     "metadata": metadata,
@@ -300,9 +316,21 @@ Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": ".
         retry_content = retry_content.strip()
         
         parsed = json.loads(retry_content)
+        reply_text = parsed.get("reply_text", "")
+        metadata = parsed.get("metadata", {})
+        
+        # --- SCANNER ---
+        known_symptoms = state["patient_case"].get("symptoms", [])
+        current_revealed = set(metadata.get("revealed", []))
+        for s in known_symptoms:
+            if s.lower() in reply_text.lower():
+                current_revealed.add(s)
+        metadata["revealed"] = list(current_revealed)
+        # --- END SCANNER ---
+
         return {
-            "reply": parsed.get("reply_text", ""),
-            "metadata": parsed.get("metadata", {}),
+            "reply": reply_text,
+            "metadata": metadata,
             # Note: History update should only include the FINAL valid turn to avoid clutter
             "history_update": [HumanMessage(content=user_input), AIMessage(content=retry_response.content)]
         }
