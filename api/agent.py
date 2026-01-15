@@ -198,6 +198,50 @@ def generate_patient_case() -> PatientCase:
         import random
         return random.choice(fallbacks)
 
+# --- EXTRACTION AGENT ---
+
+def perform_symptom_extraction(text: str, known_symptoms: List[str]) -> List[str]:
+    """
+    Dedicated agent to extract symptoms from text against a known list.
+    Uses a fast, cheap model (Llama-3 8b) to ensure low latency.
+    """
+    if not text:
+        return []
+
+    llm = get_groq_llm(temperature=0.1, model_name="llama-3.1-8b-instant")
+    
+    prompt = f"""
+    SYSTEM: You are a medical data extractor.
+    Task: Identify which of the following KNOWN SYMPTOMS are present in the INPUT TEXT.
+    
+    KNOWN SYMPTOMS DATABASE: {json.dumps(known_symptoms)}
+    
+    INPUT TEXT: "{text}"
+    
+    INSTRUCTIONS:
+    1. Output a JSON object with a single key "found_symptoms".
+    2. "found_symptoms" must be a list of strings from the KNOWN SYMPTOMS DATABASE.
+    3. Use semantic matching (e.g., "head hurts" -> "headache").
+    4. If no symptoms found, return empty list.
+    5. STRICT JSON ONLY. No markdown.
+    """
+    
+    try:
+        response = llm.invoke([HumanMessage(content=prompt)])
+        content = response.content.strip()
+        
+        # Clean JSON
+        if content.startswith("```json"): content = content[7:]
+        if content.endswith("```"): content = content[:-3]
+        content = content.strip()
+        
+        data = json.loads(content)
+        return data.get("found_symptoms", [])
+        
+    except Exception as e:
+        print(f"Extraction Agent Failed: {e}")
+        return []
+
 def process_turn(state: PatientState, user_input: str) -> Dict:
     llm = get_groq_llm(temperature=0.5)
 
@@ -247,33 +291,14 @@ Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": ".
         reply_text = parsed.get("reply_text", "")
         metadata = parsed.get("metadata", {})
         
-        # --- SCANNER V2 (Fuzzy Keyword Bridge) ---
-        known_symptoms = state["patient_case"].get("symptoms", [])
-        current_revealed = set(metadata.get("revealed", []))
-        
-        # Common medical keywords that bridge the gap between "I have a headache" (text) and "Severe pulsating headache" (db)
-        # If both the text and the DB symptom share one of these keywords, we count it as a match.
-        BRIDGE_KEYWORDS = ["headache", "pain", "fever", "cough", "nausea", "vomit", "dizzy", "dizziness", "rash", "itch", "swelling", "fatigue", "tired", "breath", "throat", "burn", "ache", "cramp", "stomach", "chest", "vision", "blur", "sleep", "insomnia", "bleeding", "blood", "bruise", "sneeze", "cold", "sweat", "chill", "shiver", "thirst", "hungry", "appetite", "weight", "ear", "eye", "mouth", "nose", "back", "leg", "arm", "hand", "foot", "joint", "muscle", "weakness", "numb", "tingle"]
-        
-        reply_lower = reply_text.lower()
-        
-        for s in known_symptoms:
-            s_lower = s.lower()
-            
-            # Rule 1: Direct substring match (Strongest)
-            if s_lower in reply_lower:
-                current_revealed.add(s)
-                continue
-                
-            # Rule 2: Keyword Bridge (Fuzzy)
-            # If text has "headache" AND symptom has "headache", reveal it.
-            for kw in BRIDGE_KEYWORDS:
-                if kw in reply_lower and kw in s_lower:
-                    current_revealed.add(s)
-                    break 
-
-        metadata["revealed"] = list(current_revealed)
-        # --- END SCANNER ---
+        # --- DUAL-AGENT EXTRACTION ---
+        if reply_text:
+            known_symptoms = state["patient_case"].get("symptoms", [])
+            extracted = perform_symptom_extraction(reply_text, known_symptoms)
+            current_revealed = set(metadata.get("revealed", []))
+            for s in extracted: current_revealed.add(s)
+            metadata["revealed"] = list(current_revealed)
+        # -----------------------------
 
         return {
             "reply": reply_text,
@@ -301,26 +326,14 @@ Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": ".
                  metadata = None # Valid JSON but not our schema
             
             if metadata:
-                # --- SCANNER V2 (Fuzzy Keyword Bridge) ---
-                known_symptoms = state["patient_case"].get("symptoms", [])
-                current_revealed = set(metadata.get("revealed", []))
-                
-                BRIDGE_KEYWORDS = ["headache", "pain", "fever", "cough", "nausea", "vomit", "dizzy", "dizziness", "rash", "itch", "swelling", "fatigue", "tired", "breath", "throat", "burn", "ache", "cramp", "stomach", "chest", "vision", "blur", "sleep", "insomnia", "bleeding", "blood", "bruise", "sneeze", "cold", "sweat", "chill", "shiver", "thirst", "hungry", "appetite", "weight", "ear", "eye", "mouth", "nose", "back", "leg", "arm", "hand", "foot", "joint", "muscle", "weakness", "numb", "tingle"]
-                
-                reply_lower = reply_text.lower()
-                
-                for s in known_symptoms:
-                    s_lower = s.lower()
-                    if s_lower in reply_lower:
-                        current_revealed.add(s)
-                        continue
-                    for kw in BRIDGE_KEYWORDS:
-                        if kw in reply_lower and kw in s_lower:
-                            current_revealed.add(s)
-                            break 
-
-                metadata["revealed"] = list(current_revealed)
-                # --- END SCANNER ---
+                # --- DUAL-AGENT EXTRACTION ---
+                if reply_text:
+                    known_symptoms = state["patient_case"].get("symptoms", [])
+                    extracted = perform_symptom_extraction(reply_text, known_symptoms)
+                    current_revealed = set(metadata.get("revealed", []))
+                    for s in extracted: current_revealed.add(s)
+                    metadata["revealed"] = list(current_revealed)
+                # -----------------------------
 
                 return {
                     "reply": reply_text,
@@ -354,26 +367,14 @@ Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": ".
         reply_text = parsed.get("reply_text", "")
         metadata = parsed.get("metadata", {})
         
-        # --- SCANNER V2 (Fuzzy Keyword Bridge) ---
-        known_symptoms = state["patient_case"].get("symptoms", [])
-        current_revealed = set(metadata.get("revealed", []))
-        
-        BRIDGE_KEYWORDS = ["headache", "pain", "fever", "cough", "nausea", "vomit", "dizzy", "dizziness", "rash", "itch", "swelling", "fatigue", "tired", "breath", "throat", "burn", "ache", "cramp", "stomach", "chest", "vision", "blur", "sleep", "insomnia", "bleeding", "blood", "bruise", "sneeze", "cold", "sweat", "chill", "shiver", "thirst", "hungry", "appetite", "weight", "ear", "eye", "mouth", "nose", "back", "leg", "arm", "hand", "foot", "joint", "muscle", "weakness", "numb", "tingle"]
-        
-        reply_lower = reply_text.lower()
-        
-        for s in known_symptoms:
-            s_lower = s.lower()
-            if s_lower in reply_lower:
-                current_revealed.add(s)
-                continue
-            for kw in BRIDGE_KEYWORDS:
-                if kw in reply_lower and kw in s_lower:
-                    current_revealed.add(s)
-                    break 
-
-        metadata["revealed"] = list(current_revealed)
-        # --- END SCANNER ---
+        # --- DUAL-AGENT EXTRACTION ---
+        if reply_text:
+            known_symptoms = state["patient_case"].get("symptoms", [])
+            extracted = perform_symptom_extraction(reply_text, known_symptoms)
+            current_revealed = set(metadata.get("revealed", []))
+            for s in extracted: current_revealed.add(s)
+            metadata["revealed"] = list(current_revealed)
+        # -----------------------------
 
         return {
             "reply": reply_text,
