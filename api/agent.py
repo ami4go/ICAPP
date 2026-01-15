@@ -211,7 +211,16 @@ def process_turn(state: PatientState, user_input: str) -> Dict:
     if "messages" in state and state["messages"]:
         messages.extend(state["messages"])
         
-    messages.append(HumanMessage(content=user_input))
+    # Inject strict instruction into the user's message to toggle "Active Mode" JSON compliance
+    per_turn_instruction = f"""
+{user_input}
+
+[SYSTEM INSTRUCTION: You MUST return a JSON object with 'metadata' tracking revealed symptoms. 
+Current revealed: {state.get('revealed_symptoms', [])}.
+If I just revealed a new symptom, add it to the list inside 'metadata'.
+Format: {{ "reply_text": "...", "metadata": {{ "revealed": ["..."], "status": "..." }} }} ]
+"""
+    messages.append(HumanMessage(content=per_turn_instruction))
     
     response = llm.invoke(messages)
     
