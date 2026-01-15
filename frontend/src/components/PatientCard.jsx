@@ -24,6 +24,10 @@ const PatientCard = ({ patient, state }) => {
 
             <div className="patient-details">
                 <div className="detail-row">
+                    <span className="label">Name</span>
+                    <span className="value">{patient.name}</span>
+                </div>
+                <div className="detail-row">
                     <span className="label">Age Group</span>
                     <span className="value">{patient.age_range}</span>
                 </div>
@@ -50,36 +54,7 @@ const PatientCard = ({ patient, state }) => {
             </div>
 
 
-            {
-                state.debug && (
-                    <div className="debug-panel glass-panel" style={{ marginTop: '20px', border: '1px solid #0ea5e9', background: 'rgba(14, 165, 233, 0.1)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h4 style={{ color: '#0ea5e9', margin: 0 }}>Possible Condition</h4>
-                            {state.revealed_symptoms && state.revealed_symptoms.length >= 5 ? (
-                                <button
-                                    onClick={() => setRevealed(!revealed)}
-                                    style={{
-                                        background: 'transparent',
-                                        border: '1px solid #0ea5e9',
-                                        color: '#0ea5e9',
-                                        padding: '2px 8px',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        fontSize: '0.8rem'
-                                    }}
-                                >
-                                    {revealed ? 'Hide' : 'Reveal'}
-                                </button>
-                            ) : (
-                                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                                    Locked 🔒 ({state.revealed_symptoms ? state.revealed_symptoms.length : 0}/5)
-                                </span>
-                            )}
-                        </div>
-                        {revealed && <p style={{ margin: '10px 0 0 0', fontWeight: 'bold' }}>{state.debug.disease}</p>}
-                    </div>
-                )
-            }
+            {/* Removed Debug Panel as per user request */}
         </div >
     );
 };
